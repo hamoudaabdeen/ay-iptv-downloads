@@ -1,0 +1,46 @@
+name: Import verified AY Player 0.5.12
+on:
+  push:
+    paths: ['.github/workflows/import-player-0512.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  import-tested-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Fetch exact tested APK and verify checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --connect-timeout 15 --max-time 180 'https://aysoft.org/downloads/ay-player/0.5.12/AY-Player-0.5.12-Android-TV.apk' -o AY-Player-0.5.12-Android-TV.apk
+          echo '291a6a87f8c86c2965d4e1f2b9b8409509a5f331c978740a58d13f2987a3e862  AY-Player-0.5.12-Android-TV.apk' > SHA256SUMS.txt
+          sha256sum --check SHA256SUMS.txt
+      - name: Publish test candidate without replacing prior versions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: hamoudaabdeen/ay-iptv-downloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > notes.md <<'NOTES'
+          AY Player 0.5.12 (versionCode 23) — Android test candidate.
+          
+          - Responsive live exit; blocking LibVLC stop runs outside the UI thread.
+          - Back to Series, restored category/position and late-response protection.
+          - Season order 1, 2, 10; compact landscape details corrected.
+          - Device & activation shows a copyable app-specific ID; no MAC licensing.
+          - Android 6 theme inflation compatibility corrected.
+          
+          Windows build/lint passed. Android 6 emulator navigation/playback, in-place upgrade preservation and identity/clipboard tested. Physical vivo Android 16 and customer provider streams still need verification. Activation remains optional; no Play Billing claim.
+          
+          تحديث تجريبي: إصلاح الرجوع والتعليق وترتيب المواسم وتحسين عرض الموبايل وإضافة معرّف خاص بالتطبيق. احتفظنا بالنسخة السابقة؛ لم تُستبدل نسخة مستقرة.
+          
+          Alternate direct download: https://aysoft.org/downloads/ay-player/0.5.12/AY-Player-0.5.12-Android-TV.apk
+          NOTES
+          if ! gh release view v0.5.12-test >/dev/null 2>&1; then
+            gh release create v0.5.12-test --draft --prerelease --latest=false --title 'AY Player 0.5.12 · navigation fixes (test)' --notes-file notes.md
+          fi
+          gh release upload v0.5.12-test AY-Player-0.5.12-Android-TV.apk SHA256SUMS.txt
+          gh release edit v0.5.12-test --draft=false --prerelease --latest=false
