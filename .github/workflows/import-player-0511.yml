@@ -1,0 +1,27 @@
+name: Import verified AY Player 0.5.11
+on:
+  push:
+    paths: ['.github/workflows/import-player-0511.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  import-tested-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Fetch exact tested APK and verify checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --connect-timeout 15 --max-time 180 'https://aysoft.org/downloads/ay-player/0.5.11/AY-Player-0.5.11-Android-TV.apk' -o AY-Player-0.5.11-Android-TV.apk
+          echo 'e74b07cca756c9169f3e3d9b367b32c9739fb4893c4e9da803143278642ca346  AY-Player-0.5.11-Android-TV.apk' | sha256sum --check -
+      - name: Attach verified candidate without changing stable releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: hamoudaabdeen/ay-iptv-downloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release upload v0.5.11-test AY-Player-0.5.11-Android-TV.apk --clobber
+          gh release edit v0.5.11-test --draft=false --prerelease --latest=false
