@@ -1,0 +1,42 @@
+name: Import verified AY Player 0.5.14
+on:
+  push:
+    paths: ['.github/workflows/import-player-0514.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  import-tested-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Fetch tested signed APK and verify checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --connect-timeout 15 --max-time 180 'https://aysoft.org/downloads/ay-player/0.5.14/AY-Player-0.5.14-Android-TV.apk' -o AY-Player-0.5.14-Android-TV.apk
+          echo '4814e2507a2376d69281e8fa5d950a0b1fc0207d74ef9d86fcc4fa78e718e071  AY-Player-0.5.14-Android-TV.apk' > SHA256SUMS.txt
+          sha256sum --check SHA256SUMS.txt
+      - name: Publish diagnostic test candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: hamoudaabdeen/ay-iptv-downloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > notes.md <<'NOTES'
+          AY Player 0.5.14 (25) - diagnostic comparison test candidate.
+
+          Classify at most 512 response bytes locally: actual HTML versus mislabeled media. Copy only fixed classifications and redacted redirect origins/status, excluding stream paths, credentials, signed queries and body text. Other player explicitly shares the same attempted stream URL with the user-selected app after native playback stops; that app may use different headers.
+
+          Windows build/lint, 27 JVM probe/sample checks and 12 Android6 runtime checks passed. Update preserved preferences; synthetic live/episode playback, back navigation, exact-URL external delivery and safe clipboard verified.
+
+          Customer confirms subscription works elsewhere. Actual AY playback on that provider remains unresolved. URL generation, user-agent and codec selection are unchanged: this is not a claimed playback fix. Physical Android16 test pending. Activation optional; earlier releases retained.
+
+          Direct download: https://aysoft.org/downloads/ay-player/0.5.14/AY-Player-0.5.14-Android-TV.apk
+          NOTES
+          if ! gh release view v0.5.14-test >/dev/null 2>&1; then
+            gh release create v0.5.14-test --draft --prerelease --latest=false --title 'AY Player 0.5.14 - same-link comparison and response evidence (test)' --notes-file notes.md
+          fi
+          gh release upload v0.5.14-test AY-Player-0.5.14-Android-TV.apk SHA256SUMS.txt
+          gh release edit v0.5.14-test --draft=false --prerelease --latest=false
