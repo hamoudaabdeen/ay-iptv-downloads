@@ -1,0 +1,46 @@
+name: Import verified AY Player 0.5.13
+on:
+  push:
+    paths: ['.github/workflows/import-player-0513.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  import-tested-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Fetch exact tested APK and verify checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --connect-timeout 15 --max-time 180 'https://aysoft.org/downloads/ay-player/0.5.13/AY-Player-0.5.13-Android-TV.apk' -o AY-Player-0.5.13-Android-TV.apk
+          echo '58e28d1c1793bdd282dba2b552e6169597400a4d17770c6ffca41443564c72e2  AY-Player-0.5.13-Android-TV.apk' > SHA256SUMS.txt
+          sha256sum --check SHA256SUMS.txt
+      - name: Publish test candidate without replacing prior versions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: hamoudaabdeen/ay-iptv-downloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > notes.md <<'NOTES'
+          AY Player 0.5.13 (versionCode 24) — provider compatibility test candidate.
+          
+          - Honor provider-declared live/VOD/episode URLs, including relative/CDN links and signed queries; retain provider-route fallback.
+          - Add Connection details and Copy report on final playback failure.
+          - Explicit check stops native playback before making one bounded HTTP request; no raw credential paths or native logs enter the report.
+          
+          Windows build/lint, Java URL/probe/privacy regressions and 11 Android 6 runtime checks passed. A controlled relative-URL failure was reproduced on 0.5.12 and played on 0.5.13; an episode played its declared signed URL while the constructed route was absent. HTTP 401/403 and sanitized clipboard reports verified.
+          
+          The actual customer provider / physical Android 16 root cause remains unconfirmed. This test candidate does not promise all provider streams now play. If playback fails: Connection details -> Copy report. Activation remains optional.
+          
+          تصحيح التعامل مع روابط المزوّد وإضافة فحص اتصال اختياري وتقرير قابل للنسخ دون بيانات الدخول. اختبار حسابك الفعلي ما زال مطلوبًا، والنسخ السابقة محفوظة.
+          
+          Alternate direct download: https://aysoft.org/downloads/ay-player/0.5.13/AY-Player-0.5.13-Android-TV.apk
+          NOTES
+          if ! gh release view v0.5.13-test >/dev/null 2>&1; then
+            gh release create v0.5.13-test --draft --prerelease --latest=false --title 'AY Player 0.5.13 · provider URL fixes and diagnostics (test)' --notes-file notes.md
+          fi
+          gh release upload v0.5.13-test AY-Player-0.5.13-Android-TV.apk SHA256SUMS.txt
+          gh release edit v0.5.13-test --draft=false --prerelease --latest=false
