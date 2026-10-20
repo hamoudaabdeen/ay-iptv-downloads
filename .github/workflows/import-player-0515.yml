@@ -1,0 +1,43 @@
+name: Import verified AY Player 0.5.15
+on:
+  push:
+    paths: ['.github/workflows/import-player-0515.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  import-tested-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Fetch tested signed APK and verify checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --connect-timeout 15 --max-time 180 'https://aysoft.org/downloads/ay-player/0.5.15/AY-Player-0.5.15-Android-TV.apk' -o AY-Player-0.5.15-Android-TV.apk
+          echo '30e1ba9f14fd26dd85c970b6f5ffd00db9dd9adbd086cb02b621225f224cfea1  AY-Player-0.5.15-Android-TV.apk' > SHA256SUMS.txt
+          sha256sum --check SHA256SUMS.txt
+      - name: Publish route-recovery test candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: hamoudaabdeen/ay-iptv-downloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > notes.md <<'NOTES'
+          AY Player 0.5.15 (26) - complete advertised live route fallback.
+
+          Fix a reproduced defect where a provider-declared live URL plus advertised HLS/TS produced three legitimate routes, but only the first two were attempted. Try each distinct provider route once, up to three, stopping the prior native attempt before the next; do not invent hosts, credentials or unadvertised formats. Diagnostics and lifecycle resume now refer to the actual attempt.
+
+          Windows assembleDebug/lintDebug, 8 ordered-route JVM checks and 10 Android6 runtime checks passed. On the same isolated fixture 0.5.14 failed without requesting the third TS URL; 0.5.15 requested it and played. In-place update preserved preferences; episode playback and back navigation remained functional. Same package/signer.
+
+          The customer's HTTP401 and earlier ISP-redirect report are real observed failures; their exact cause is still unconfirmed. This fixes the route-omission defect but does not claim that all customer live/series streams now play. Physical Android16/provider retest pending. Prior APKs retained; activation optional.
+
+          تحميل نسخة اختبار بتصحيح الانتقال بين روابط القنوات المعلنة. سبب رفض حساب العميل ما زال يحتاج تحققًا على هاتفه.
+          Alternate direct download: https://aysoft.org/downloads/ay-player/0.5.15/AY-Player-0.5.15-Android-TV.apk
+          NOTES
+          if ! gh release view v0.5.15-test >/dev/null 2>&1; then
+            gh release create v0.5.15-test --draft --prerelease --latest=false --title 'AY Player 0.5.15 - complete provider route fallback (test)' --notes-file notes.md
+          fi
+          gh release upload v0.5.15-test AY-Player-0.5.15-Android-TV.apk SHA256SUMS.txt
+          gh release edit v0.5.15-test --draft=false --prerelease --latest=false
