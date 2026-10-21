@@ -1,0 +1,41 @@
+name: Import verified AY Player 0.5.17
+on:
+  push:
+    paths: ['.github/workflows/import-player-0517.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  import-tested-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Fetch tested signed APK and verify checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --connect-timeout 15 --max-time 180 'https://aysoft.org/downloads/ay-player/0.5.17/AY-Player-0.5.17-Android-TV.apk' -o AY-Player-0.5.17-Android-TV.apk
+          echo 'fa20a57e8de6261f745d986671ad1a04561c48567b1bf1f27da69b1f4deb2eff  AY-Player-0.5.17-Android-TV.apk' > SHA256SUMS.txt
+          sha256sum --check SHA256SUMS.txt
+      - name: Publish tested login candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: hamoudaabdeen/ay-iptv-downloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > notes.md <<'NOTES'
+          AY Player 0.5.17 (28) - TV login and server entry.
+
+          Enter a domain/IP and port without typing http://. Normalize before login and saving; preserve explicit HTTPS and signed paths/queries. Test dismisses keyboard and focuses Connect; Connect reuses unchanged successful verification once for up to 60 seconds. Keep connection buttons visible below scrollable fields; allow keyboard resize on older Android. Show actual installed version. Permit Xtream detection when the AY probe returns a non-JSON landing page.
+
+          Windows assembleDebug/lintDebug passed with zero errors. 32 JVM assertions and 13 compact Android6 emulator assertions passed: 0.5.16 in-place update, bare-host Test then remote DPAD Connect, single authentication, changed-password verification, failed-login account preservation, prefix-free M3U, no crash/ANR, preference restoration. Same package and signer.
+
+          Test prerelease. Customer Haier Android11 and vivo Android16/provider retest remains necessary. Google Play Billing remains unfinished; activation stays optional. Prior APKs retained.
+          نسخة اختبار لإصلاح إدخال السيرفر والاتصال على الشاشة، مع الحفاظ على الحسابات.
+          NOTES
+          if ! gh release view v0.5.17-test >/dev/null 2>&1; then
+            gh release create v0.5.17-test --draft --prerelease --latest=false --title 'AY Player 0.5.17 - TV login (test)' --notes-file notes.md
+          fi
+          gh release upload v0.5.17-test AY-Player-0.5.17-Android-TV.apk SHA256SUMS.txt
+          gh release edit v0.5.17-test --draft=false --prerelease --latest=false
