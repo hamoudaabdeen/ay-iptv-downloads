@@ -1,0 +1,42 @@
+name: Import verified AY Player 0.5.16
+on:
+  push:
+    paths: ['.github/workflows/import-player-0516.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  import-tested-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Fetch tested signed APK and verify checksum
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --connect-timeout 15 --max-time 180 'https://aysoft.org/downloads/ay-player/0.5.16/AY-Player-0.5.16-Android-TV.apk' -o AY-Player-0.5.16-Android-TV.apk
+          echo 'ebcb0eacd8f927c683420e13023cd0350fffc2b1c00dbeaf702c0d3dd7dfb735  AY-Player-0.5.16-Android-TV.apk' > SHA256SUMS.txt
+          sha256sum --check SHA256SUMS.txt
+      - name: Publish stability test candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: hamoudaabdeen/ay-iptv-downloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > notes.md <<'NOTES'
+          AY Player 0.5.16 (27) - bounded poster memory/work and live recovery.
+
+          Downsample posters before decoding; cap download size, worker count, queue and cache. Clear recycled image holders and skip hidden detail artwork on compact screens. Established live playback retries twice after connection failure or 25 seconds without advancing playback time. Simplify home source details and refine AY vector marks.
+
+          Windows assembleDebug/lintDebug passed (0 errors; existing warnings remain). 15 JVM policy checks, actual Android6 poster instrumentation including a 6000x9000 image decoded to 375x562 / 843000 bytes and 64-view queue pressure, plus 12 compact UI/playback checks passed. Induced live interruption was requested again and returned to playback state. Episode navigation and rapid live Back/reopen cycles passed. Same package/signer; account preferences retained.
+
+          Test prerelease. Physical Android16/customer-provider retest remains necessary; intermittent user reports are not declared fully resolved. Google Play Billing is unfinished and application activation stays optional. Previous APKs retained.
+          نسخة اختبار لتحسين ثبات التشغيل وتحميل الصور والواجهة. ثبّتها فوق النسخة الحالية.
+          Alternate direct download: https://aysoft.org/downloads/ay-player/0.5.16/AY-Player-0.5.16-Android-TV.apk
+          NOTES
+          if ! gh release view v0.5.16-test >/dev/null 2>&1; then
+            gh release create v0.5.16-test --draft --prerelease --latest=false --title 'AY Player 0.5.16 - stability and browsing (test)' --notes-file notes.md
+          fi
+          gh release upload v0.5.16-test AY-Player-0.5.16-Android-TV.apk SHA256SUMS.txt
+          gh release edit v0.5.16-test --draft=false --prerelease --latest=false
